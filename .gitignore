@@ -1,0 +1,5 @@
+**/__pycache__
+_skbuild/
+dist/
+**/*.pyd
+**/*egg-info

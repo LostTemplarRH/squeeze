@@ -245,7 +245,7 @@ private:
 auto compressLz80(const uint8_t* data, const size_t size) -> std::vector<uint8_t>
 {
     Lz80Compressor lz80(data, size);
-    squeeze::LzCompressor<squeeze::BruteForceMatcher<3>> lz;
+    squeeze::LzCompressor<squeeze::BinaryTreeMatcher<3>> lz{squeeze::BinaryTreeMatcher<3>{32768}};
     lz.matcher().configureMatchClass(0, MatchClass{0, {2, 6}, {1, 17}});
     lz.matcher().configureMatchClass(1, MatchClass{1, {3, 18}, {1, 1025}});
     lz.matcher().configureMatchClass(2, MatchClass{2, {4, 131}, {1, 32768}});

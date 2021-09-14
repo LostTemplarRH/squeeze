@@ -219,20 +219,23 @@ template <unsigned int MatchClasses> class BinaryTreeMatcher : public StringMatc
 {
 public:
     using StringMatcher<MatchClasses>::maxMatchLength;
+    using StringMatcher<MatchClasses>::resetMatches;
 
     explicit BinaryTreeMatcher(const size_t windowLength)
-        : m_nodes(windowLength)
+        : m_nodes(windowLength, Node{EmptyNode, EmptyNode, EmptyNode})
     {
     }
 
     template <class Iterator> bool findMatches(Iterator begin, Iterator end, Iterator pos)
     {
+        resetMatches();
+
         bool matchFound{false};
         auto i = m_root;
 
         while (i != EmptyNode)
         {
-            auto const offset = m_positionBase + i;
+            auto const offset = m_positionBase - i;
             auto const nodePos = pos - offset;
             auto const [comparison, length] =
                 compare(pos, pos + maxMatchLength(), nodePos, nodePos + maxMatchLength());
@@ -267,7 +270,6 @@ public:
     template <class Iterator>
     void advance(Iterator begin, Iterator end, Iterator pos, const size_t steps)
     {
-        auto const& root = m_nodes[m_root];
         for (size_t i = 0; i < steps; ++i)
         {
             if (pos - begin >= windowLength())
@@ -291,7 +293,7 @@ private:
     {
         for (size_t i = 0; begin_a != end_a; ++begin_a, ++begin_b, ++i)
         {
-            auto const result = *begin_b - *begin_a;
+            auto const result = *begin_a - *begin_b;
             if (result != 0)
             {
                 return std::make_pair(result > 0 ? 1 : -1, i);
@@ -309,6 +311,7 @@ private:
         {
             m_root = m_positionBase;
             m_nodes[m_positionBase].parent = EmptyNode;
+            return;
         }
 
         const size_t searchLength = pos - begin;
@@ -316,7 +319,7 @@ private:
 
         while (true)
         {
-            auto const offset = std::min(static_cast<size_t>(m_positionBase + i), searchLength);
+            auto const offset = std::min(static_cast<size_t>(m_positionBase - i), searchLength);
             auto const nodePos = pos - offset;
             auto const [result, length] =
                 compare(pos, pos + matchLength, nodePos, nodePos + matchLength);

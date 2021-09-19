@@ -8,7 +8,7 @@
 
 namespace squeeze {
 
-class LzDecompressor
+template <bool AllowOverlapping = false> class LzDecompressor
 {
 public:
     void reset(const uint8_t* data, const size_t size)
@@ -23,6 +23,18 @@ public:
     {
         auto const oldSize = m_decompressed.size();
         m_decompressed.resize(m_decompressed.size() + length);
+        if constexpr (AllowOverlapping)
+        {
+            // Make sure enough data is there beforehand
+            for (size_t i = 0; i < length && i < 32; ++i)
+            {
+                m_decompressed[oldSize + i] = m_decompressed[oldSize + i - offset];
+            }
+            if (length <= 32)
+            {
+                return;
+            }
+        }
         std::memcpy(m_decompressed.data() + oldSize, m_decompressed.data() + oldSize - offset,
                     length);
     }
@@ -174,12 +186,17 @@ private:
 template <unsigned int MatchClasses> class BruteForceMatcher : public StringMatcher<MatchClasses>
 {
 public:
+    explicit BruteForceMatcher(const size_t windowLength)
+        : m_windowLength{windowLength}
+    {
+    }
+
     template <class Iterator> bool findMatches(Iterator begin, Iterator end, Iterator pos)
     {
         this->resetMatches();
 
         bool matchFound{false};
-        auto const searchLength = pos - begin;
+        auto const searchLength = std::min(static_cast<size_t>(pos - begin), m_windowLength);
         auto const lookAheadLength = end - pos;
         for (size_t offset = 1; offset < searchLength; ++offset)
         {
@@ -191,7 +208,7 @@ public:
                     break;
                 }
             }
-            if (length > 0)
+            if (length > 1)
             {
                 for (unsigned int cls = 0; cls < this->matchClassCount(); ++cls)
                 {
@@ -213,6 +230,9 @@ public:
     template <class Iterator> void advance(Iterator, Iterator, Iterator, const size_t)
     {
     }
+
+private:
+    size_t m_windowLength;
 };
 
 template <unsigned int MatchClasses> class BinaryTreeMatcher : public StringMatcher<MatchClasses>
@@ -237,8 +257,10 @@ public:
         {
             auto const offset = m_positionBase - i;
             auto const nodePos = pos - offset;
+            auto const patternEnd =
+                pos + std::min(maxMatchLength(), static_cast<size_t>(end - pos));
             auto const [comparison, length] =
-                compare(pos, pos + maxMatchLength(), nodePos, nodePos + maxMatchLength());
+                compare(pos, patternEnd, nodePos, nodePos + (patternEnd - pos));
 
             if (length > 0)
             {
@@ -274,7 +296,7 @@ public:
         {
             if (pos - begin >= windowLength())
             {
-                remove(windowLength() - m_positionBase);
+                remove(windowLength() - m_positionBase - 1);
             }
 
             insert(begin, end, pos);
@@ -304,8 +326,6 @@ private:
 
     template <class Iterator> void insert(Iterator begin, Iterator end, Iterator pos)
     {
-        m_nodes[m_positionBase].left = m_nodes[m_positionBase].right = EmptyNode;
-
         auto i = m_root;
         if (i == EmptyNode)
         {
@@ -332,6 +352,7 @@ private:
                 else
                 {
                     setRight(i, m_positionBase);
+                    m_nodes[m_positionBase].left = m_nodes[m_positionBase].right = EmptyNode;
                     return;
                 }
             }
@@ -344,6 +365,7 @@ private:
                 else
                 {
                     setLeft(i, m_positionBase);
+                    m_nodes[m_positionBase].left = m_nodes[m_positionBase].right = EmptyNode;
                     return;
                 }
             }
@@ -394,13 +416,19 @@ private:
     void setLeft(const unsigned int n, const unsigned int left)
     {
         m_nodes[n].left = left;
-        m_nodes[left].parent = n;
+        if (left != EmptyNode)
+        {
+            m_nodes[left].parent = n;
+        }
     }
 
     void setRight(const unsigned int n, const unsigned int right)
     {
         m_nodes[n].right = right;
-        m_nodes[right].parent = n;
+        if (right != EmptyNode)
+        {
+            m_nodes[right].parent = n;
+        }
     }
 
     void replace(const unsigned int n, const unsigned int replacement)
@@ -457,6 +485,8 @@ private:
 template <class Matcher> class LzCompressor
 {
 public:
+    LzCompressor() = default;
+
     explicit LzCompressor(const Matcher& matcher)
         : m_matcher{matcher}
     {
@@ -483,7 +513,7 @@ public:
         auto const* begin = data;
         auto const* pos = data;
         auto const* end = data + size;
-        while (pos != end)
+        while (pos < end)
         {
             if (m_matcher.findMatches(begin, end, pos))
             {

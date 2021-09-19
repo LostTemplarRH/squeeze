@@ -19,7 +19,7 @@ public:
     void emitMatch(const size_t offset, const size_t length);
 
 private:
-    squeeze::LzDecompressor m_lzss;
+    squeeze::LzDecompressor<true> m_lzss;
 };
 
 auto Lz80Decompressor::decompress(const uint8_t* data, const size_t size) -> std::vector<uint8_t>
@@ -111,15 +111,15 @@ void Lz80Decompressor::copyFromRingBuffer3(const uint8_t flags)
 
 void Lz80Decompressor::emitLiterals(const size_t length)
 {
-    std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
-              << " Literals: " << length << "\n";
+    // std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
+    //<< " Literals: " << length << "\n";
     m_lzss.emitLiterals(length);
 }
 
 void Lz80Decompressor::emitMatch(const size_t offset, const size_t length)
 {
-    std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
-              << " Match   : " << offset << ", " << length << "\n";
+    // std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
+    //<< " Match   : " << offset << ", " << length << "\n";
     m_lzss.emitMatch(offset, length);
 }
 
@@ -132,7 +132,8 @@ class Lz80Compressor
 {
 public:
     explicit Lz80Compressor(const uint8_t* data, const size_t size)
-        : m_literalStart{data}
+        : m_data{data}
+        , m_literalStart{data}
         , m_literalEnd{data}
         , m_end{data + size}
     {
@@ -141,6 +142,9 @@ public:
     void consumeMatch(const uint8_t* begin, const uint8_t* end, const unsigned int cls,
                       const Match& match)
     {
+        // std::cout << "Match: " << (begin - m_data) << ": " << match.offset << ", " <<
+        // match.length
+        //        << "\n";
         if (m_literalStart != m_literalEnd)
         {
             encodeUncompressed(end);
@@ -167,11 +171,12 @@ public:
 
     void encodeMatch1(const Match& match)
     {
+        auto const adjustedOffset = match.offset - 1;
         uint8_t flags = (match.length - 3) << 2;
-        flags |= (match.offset >> 8);
+        flags |= (adjustedOffset >> 8);
         flags |= 2 << 6;
         m_compressed.push_back(flags);
-        m_compressed.push_back(static_cast<uint8_t>(match.offset - 1));
+        m_compressed.push_back(static_cast<uint8_t>(adjustedOffset));
     }
 
     void encodeMatch2(const Match& match)
@@ -199,6 +204,7 @@ public:
     void encodeUncompressed(const uint8_t* pos)
     {
         auto const length = m_literalEnd - m_literalStart;
+        // std::cout << "Literal: " << (pos - m_data) << ": " << length << "\n";
         if (length < 0x40)
         {
             m_compressed.push_back(static_cast<uint8_t>(length));
@@ -237,6 +243,7 @@ public:
 
 private:
     std::vector<uint8_t> m_compressed;
+    const uint8_t* m_data{nullptr};
     const uint8_t* m_literalStart{nullptr};
     const uint8_t* m_literalEnd{nullptr};
     const uint8_t* m_end{nullptr};
@@ -246,8 +253,9 @@ auto compressLz80(const uint8_t* data, const size_t size) -> std::vector<uint8_t
 {
     Lz80Compressor lz80(data, size);
     squeeze::LzCompressor<squeeze::BinaryTreeMatcher<3>> lz{squeeze::BinaryTreeMatcher<3>{32768}};
-    lz.matcher().configureMatchClass(0, MatchClass{0, {2, 6}, {1, 17}});
-    lz.matcher().configureMatchClass(1, MatchClass{1, {3, 18}, {1, 1025}});
+    // squeeze::LzCompressor<squeeze::BruteForceMatcher<3>> lz{BruteForceMatcher<3>{32768}};
+    lz.matcher().configureMatchClass(0, MatchClass{0, {2, 5}, {1, 16}});
+    lz.matcher().configureMatchClass(1, MatchClass{1, {3, 18}, {1, 1024}});
     lz.matcher().configureMatchClass(2, MatchClass{2, {4, 131}, {1, 32768}});
     lz.compress(data, size, lz80);
     return lz80.finish();

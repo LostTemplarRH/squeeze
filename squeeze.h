@@ -25,18 +25,16 @@ public:
         m_decompressed.resize(m_decompressed.size() + length);
         if constexpr (AllowOverlapping)
         {
-            // Make sure enough data is there beforehand
-            for (size_t i = 0; i < length && i < 32; ++i)
+            for (size_t i = 0; i < length; ++i)
             {
                 m_decompressed[oldSize + i] = m_decompressed[oldSize + i - offset];
             }
-            if (length <= 32)
-            {
-                return;
-            }
         }
-        std::memcpy(m_decompressed.data() + oldSize, m_decompressed.data() + oldSize - offset,
-                    length);
+        else
+        {
+            std::memcpy(m_decompressed.data() + oldSize, m_decompressed.data() + oldSize - offset,
+                        length);
+        }
     }
 
     void emitLiterals(const size_t length)
@@ -239,6 +237,7 @@ template <unsigned int MatchClasses> class BinaryTreeMatcher : public StringMatc
 {
 public:
     using StringMatcher<MatchClasses>::maxMatchLength;
+    using StringMatcher<MatchClasses>::matchClassCount;
     using StringMatcher<MatchClasses>::resetMatches;
 
     explicit BinaryTreeMatcher(const size_t windowLength)
@@ -252,28 +251,40 @@ public:
 
         bool matchFound{false};
         auto i = m_root;
+        unsigned int maxedClasses{0};
+        unsigned int tries{0};
 
         while (i != EmptyNode)
         {
-            auto const offset = m_positionBase - i;
+            auto const offset = nodeIndexToOffset(i);
             auto const nodePos = pos - offset;
             auto const patternEnd =
                 pos + std::min(maxMatchLength(), static_cast<size_t>(end - pos));
             auto const [comparison, length] =
                 compare(pos, patternEnd, nodePos, nodePos + (patternEnd - pos));
 
-            if (length > 0)
+            if (length > 1)
             {
                 for (unsigned int cls = 0; cls < this->matchClassCount(); ++cls)
                 {
                     auto const& matchCls = this->matchClass(cls);
-                    if (matchCls.offset.contains(offset) && matchCls.length.contains(length) &&
-                        length > this->m_matches[cls].length)
+                    auto const maxMatch = std::min(length, matchCls.length.max);
+                    if (matchCls.offset.contains(offset) && length >= matchCls.length.min &&
+                        maxMatch > this->m_matches[cls].length)
                     {
-                        this->m_matches[cls].length = length;
+                        this->m_matches[cls].length = maxMatch;
                         this->m_matches[cls].offset = offset;
+
+                        if (matchCls.length.max == maxMatch)
+                        {
+                            maxedClasses += 1;
+                        }
                         matchFound = true;
                     }
+                }
+                if (maxedClasses == matchClassCount())
+                {
+                    break;
                 }
             }
 
@@ -284,6 +295,11 @@ public:
             else if (comparison < 0)
             {
                 i = m_nodes[i].left;
+            }
+
+            if (tries++ > 128)
+            {
+                break;
             }
         }
         return matchFound;
@@ -296,7 +312,7 @@ public:
         {
             if (pos - begin >= windowLength())
             {
-                remove(windowLength() - m_positionBase - 1);
+                remove(m_positionBase);
             }
 
             insert(begin, end, pos);
@@ -313,6 +329,7 @@ private:
     auto compare(Iterator begin_a, Iterator end_a, Iterator begin_b, Iterator end_b) const
         -> std::pair<int, size_t>
     {
+        auto const length = static_cast<size_t>(end_a - begin_a);
         for (size_t i = 0; begin_a != end_a; ++begin_a, ++begin_b, ++i)
         {
             auto const result = *begin_a - *begin_b;
@@ -321,13 +338,12 @@ private:
                 return std::make_pair(result > 0 ? 1 : -1, i);
             }
         }
-        return std::make_pair(0, end_a - begin_a);
+        return std::make_pair(0, length);
     }
 
     template <class Iterator> void insert(Iterator begin, Iterator end, Iterator pos)
     {
-        auto i = m_root;
-        if (i == EmptyNode)
+        if (m_root == EmptyNode)
         {
             m_root = m_positionBase;
             m_nodes[m_positionBase].parent = EmptyNode;
@@ -337,13 +353,22 @@ private:
         const size_t searchLength = pos - begin;
         const size_t matchLength = std::min(static_cast<size_t>(end - pos), maxMatchLength());
 
+        auto i = m_root;
         while (true)
         {
-            auto const offset = std::min(static_cast<size_t>(m_positionBase - i), searchLength);
+            auto const offset = nodeIndexToOffset(i);
             auto const nodePos = pos - offset;
             auto const [result, length] =
                 compare(pos, pos + matchLength, nodePos, nodePos + matchLength);
-            if (result >= 0)
+            if (result == 0)
+            {
+                replace(i, m_positionBase);
+                setRight(m_positionBase, i);
+                setLeft(m_positionBase, m_nodes[i].left);
+                setLeft(i, EmptyNode);
+                return;
+            }
+            else if (result > 0)
             {
                 if (m_nodes[i].hasRight())
                 {
@@ -352,7 +377,6 @@ private:
                 else
                 {
                     setRight(i, m_positionBase);
-                    m_nodes[m_positionBase].left = m_nodes[m_positionBase].right = EmptyNode;
                     return;
                 }
             }
@@ -365,7 +389,6 @@ private:
                 else
                 {
                     setLeft(i, m_positionBase);
-                    m_nodes[m_positionBase].left = m_nodes[m_positionBase].right = EmptyNode;
                     return;
                 }
             }
@@ -411,6 +434,7 @@ private:
             }
         }
         replace(toDelete, replacement);
+        m_nodes[toDelete].clear();
     }
 
     void setLeft(const unsigned int n, const unsigned int left)
@@ -447,13 +471,20 @@ private:
         else
         {
             m_root = replacement;
+            m_nodes[replacement].parent = EmptyNode;
         }
-        m_nodes[n].clear();
     }
 
     auto windowLength() const -> size_t
     {
         return m_nodes.size();
+    }
+
+    auto nodeIndexToOffset(const unsigned int i) const -> size_t
+    {
+        return ((m_positionBase - i - 1) % windowLength()) + 1;
+        // auto const offset =
+        // m_positionPos > i ? (m_positionBase - i) : (windowLength() + (m_positionBase - i));
     }
 
     struct Node
@@ -522,6 +553,10 @@ public:
                 processor.consumeMatch(pos, pos + match.length, bestClass, match);
                 m_matcher.advance(begin, end, pos, match.length);
                 pos += match.length;
+                if (match.offset == 8194)
+                {
+                    __debugbreak();
+                }
             }
             else
             {

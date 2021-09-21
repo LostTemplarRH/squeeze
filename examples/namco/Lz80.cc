@@ -111,15 +111,15 @@ void Lz80Decompressor::copyFromRingBuffer3(const uint8_t flags)
 
 void Lz80Decompressor::emitLiterals(const size_t length)
 {
-    // std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
-    //<< " Literals: " << length << "\n";
+    //std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
+              //<< " Literals: " << length << "\n";
     m_lzss.emitLiterals(length);
 }
 
 void Lz80Decompressor::emitMatch(const size_t offset, const size_t length)
 {
-    // std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
-    //<< " Match   : " << offset << ", " << length << "\n";
+    //std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
+              //<< " Match   : " << offset << ", " << length << "\n";
     m_lzss.emitMatch(offset, length);
 }
 
@@ -142,13 +142,13 @@ public:
     void consumeMatch(const uint8_t* begin, const uint8_t* end, const unsigned int cls,
                       const Match& match)
     {
-        // std::cout << "Match: " << (begin - m_data) << ": " << match.offset << ", " <<
-        // match.length
-        //        << "\n";
         if (m_literalStart != m_literalEnd)
         {
-            encodeUncompressed(end);
+            encodeUncompressed(begin);
         }
+
+        //std::cout << m_compressed.size() << " / " << (begin - m_data) << " "
+                  //<< "Match   : " << match.offset << ", " << match.length << "\n";
 
         switch (cls)
         {
@@ -194,7 +194,7 @@ public:
     {
         m_literalEnd += 1;
 
-        if (m_literalEnd - m_literalStart == 0x8000)
+        if (m_literalEnd - m_literalStart == 0x80bf)
         {
             encodeUncompressed(pos + 1);
             m_literalStart = m_literalEnd;
@@ -204,7 +204,8 @@ public:
     void encodeUncompressed(const uint8_t* pos)
     {
         auto const length = m_literalEnd - m_literalStart;
-        // std::cout << "Literal: " << (pos - m_data) << ": " << length << "\n";
+        //std::cout << m_compressed.size() << " / " << (pos - m_data - length) << " Literals: " << length
+                  //<< "\n";
         if (length < 0x40)
         {
             m_compressed.push_back(static_cast<uint8_t>(length));
@@ -212,11 +213,13 @@ public:
         else if (length < 0xC0)
         {
             auto const adjustedLength = static_cast<uint8_t>(length - 0x40);
+            m_compressed.push_back(0x00);
             m_compressed.push_back(0x80 | adjustedLength);
         }
         else
         {
             auto const adjustedLength = length - 0xbf;
+            m_compressed.push_back(0x00);
             m_compressed.push_back(static_cast<uint8_t>(adjustedLength >> 8));
             m_compressed.push_back(static_cast<uint8_t>(adjustedLength));
         }

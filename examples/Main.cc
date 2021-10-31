@@ -95,7 +95,7 @@ template <class Duration> auto formatDuration(const Duration duration) -> std::s
         const unsigned int seconds = inMs / 1000;
         const unsigned int fraction = inMs % 1000;
         std::stringstream ss;
-        ss << seconds << std::setfill('0') << std::setw(3) << fraction << " s";
+        ss << seconds << "." << std::setfill('0') << std::setw(3) << fraction << " s";
         return ss.str();
     }
     else

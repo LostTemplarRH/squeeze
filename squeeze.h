@@ -553,10 +553,6 @@ public:
                 processor.consumeMatch(pos, pos + match.length, bestClass, match);
                 m_matcher.advance(begin, end, pos, match.length);
                 pos += match.length;
-                if (match.offset == 8194)
-                {
-                    __debugbreak();
-                }
             }
             else
             {

@@ -132,8 +132,12 @@ void verify(const Arguments& arguments)
     auto const [compressed, compressionDuration] = doCompression(arguments.type, input);
     auto const [decompressed, decompressionDuration] = doDecompression(arguments.type, compressed);
 
-    std::cout << "Compressing took " << formatDuration(compressionDuration) << ";\n";
+    std::cout << "Compressing took " << formatDuration(compressionDuration) << "\n";
     std::cout << "Decompressing took " << formatDuration(decompressionDuration) << ".\n";
+    std::cout << "Compression ratio: "
+              << static_cast<unsigned int>(100.0f * static_cast<float>(compressed.size()) /
+                                           static_cast<float>(decompressed.size()))
+              << "%\n";
 
     if (!arguments.output.empty())
     {

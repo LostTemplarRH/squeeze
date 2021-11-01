@@ -111,15 +111,15 @@ void Lz80Decompressor::copyFromRingBuffer3(const uint8_t flags)
 
 void Lz80Decompressor::emitLiterals(const size_t length)
 {
-    //std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
-              //<< " Literals: " << length << "\n";
+    // std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
+    //<< " Literals: " << length << "\n";
     m_lzss.emitLiterals(length);
 }
 
 void Lz80Decompressor::emitMatch(const size_t offset, const size_t length)
 {
-    //std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
-              //<< " Match   : " << offset << ", " << length << "\n";
+    // std::cout << m_lzss.position() << " / " << m_lzss.decompressedPosition()
+    //<< " Match   : " << offset << ", " << length << "\n";
     m_lzss.emitMatch(offset, length);
 }
 
@@ -147,8 +147,8 @@ public:
             encodeUncompressed(begin);
         }
 
-        //std::cout << m_compressed.size() << " / " << (begin - m_data) << " "
-                  //<< "Match   : " << match.offset << ", " << match.length << "\n";
+        // std::cout << m_compressed.size() << " / " << (begin - m_data) << " "
+        //<< "Match   : " << match.offset << ", " << match.length << "\n";
 
         switch (cls)
         {
@@ -204,8 +204,9 @@ public:
     void encodeUncompressed(const uint8_t* pos)
     {
         auto const length = m_literalEnd - m_literalStart;
-        //std::cout << m_compressed.size() << " / " << (pos - m_data - length) << " Literals: " << length
-                  //<< "\n";
+        // std::cout << m_compressed.size() << " / " << (pos - m_data - length) << " Literals: " <<
+        // length
+        //<< "\n";
         if (length < 0x40)
         {
             m_compressed.push_back(static_cast<uint8_t>(length));
@@ -252,15 +253,31 @@ private:
     const uint8_t* m_end{nullptr};
 };
 
-auto compressLz80(const uint8_t* data, const size_t size) -> std::vector<uint8_t>
+auto compressLz80(const uint8_t* data, const size_t size, const size_t windowSize)
+    -> std::vector<uint8_t>
 {
     Lz80Compressor lz80(data, size);
-    squeeze::LzCompressor<squeeze::BinaryTreeMatcher<3>> lz{squeeze::BinaryTreeMatcher<3>{32768}};
-    // squeeze::LzCompressor<squeeze::BruteForceMatcher<3>> lz{BruteForceMatcher<3>{32768}};
-    lz.matcher().configureMatchClass(0, MatchClass{0, {2, 5}, {1, 16}});
-    lz.matcher().configureMatchClass(1, MatchClass{1, {3, 18}, {1, 1024}});
-    lz.matcher().configureMatchClass(2, MatchClass{2, {4, 131}, {1, 32768}});
-    lz.compress(data, size, lz80);
+    if (windowSize <= 16)
+    {
+        throw std::runtime_error{"compressLz80: windowSize must be > 16"};
+    }
+    else if (windowSize <= 1024)
+    {
+        squeeze::LzCompressor<squeeze::BinaryTreeMatcher<2>> lz{
+            squeeze::BinaryTreeMatcher<2>{windowSize}};
+        lz.matcher().configureMatchClass(0, MatchClass{0, {2, 5}, {1, 16}});
+        lz.matcher().configureMatchClass(1, MatchClass{1, {3, 18}, {1, windowSize}});
+        lz.compress(data, size, lz80);
+    }
+    else
+    {
+        squeeze::LzCompressor<squeeze::BinaryTreeMatcher<3>> lz{
+            squeeze::BinaryTreeMatcher<3>{windowSize}};
+        lz.matcher().configureMatchClass(0, MatchClass{0, {2, 5}, {1, 16}});
+        lz.matcher().configureMatchClass(1, MatchClass{1, {3, 18}, {1, 1024}});
+        lz.matcher().configureMatchClass(2, MatchClass{2, {4, 131}, {1, windowSize}});
+        lz.compress(data, size, lz80);
+    }
     return lz80.finish();
 }
 

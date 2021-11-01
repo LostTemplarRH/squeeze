@@ -22,10 +22,10 @@ static auto _decompress_lz80(py::buffer buffer) -> py::bytes
     return py::bytes{reinterpret_cast<const char*>(decompressed.data()), decompressed.size()};
 }
 
-static auto _compress_lz80(py::buffer buffer) -> py::bytes
+static auto _compress_lz80(py::buffer buffer, const size_t windowSize) -> py::bytes
 {
     auto const [data, size] = requestReadOnly(buffer);
-    auto const compressed = compressLz80(data, size);
+    auto const compressed = compressLz80(data, size, windowSize);
     return py::bytes{reinterpret_cast<const char*>(compressed.data()), compressed.size()};
 }
 

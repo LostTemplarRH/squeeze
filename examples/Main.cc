@@ -12,6 +12,8 @@
 enum class Compression
 {
     NamcoLz80,
+    NamcoLz01,
+    NamcoLz03,
 };
 
 enum class Action

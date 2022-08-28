@@ -11,12 +11,17 @@ namespace squeeze {
 template <bool AllowOverlapping = false> class LzDecompressor
 {
 public:
-    void reset(const uint8_t* data, const size_t size)
+    void reset(const uint8_t* data, const size_t size, const uint8_t* preData = nullptr,
+               const size_t preSize = 0)
     {
         m_compressed = data;
         m_size = size;
         m_position = 0;
         m_decompressed.clear();
+        if (preData && preSize > 0)
+        {
+            m_decompressed.insert(m_decompressed.begin(), preData, preData + preSize);
+        }
     }
 
     void emitMatch(const size_t offset, const size_t length)
@@ -43,6 +48,13 @@ public:
         m_decompressed.resize(m_decompressed.size() + length);
         std::memcpy(m_decompressed.data() + oldSize, m_compressed + m_position, length);
         m_position += length;
+    }
+
+    void emitLiterals(size_t count, uint8_t value)
+    {
+        auto const oldSize = m_decompressed.size();
+        m_decompressed.resize(m_decompressed.size() + count);
+        std::memset(m_decompressed.data() + oldSize, static_cast<int>(value), count);
     }
 
     auto fetch() -> uint8_t
@@ -297,7 +309,7 @@ public:
                 i = m_nodes[i].left;
             }
 
-            if (tries++ > 128)
+            if (tries++ > 4096)
             {
                 break;
             }
@@ -539,11 +551,14 @@ public:
     }
 
     template <class Processor>
-    void compress(const uint8_t* data, const size_t size, Processor& processor)
+    void compress(const uint8_t* data, const size_t size, Processor& processor,
+                  size_t startOffset = 0)
     {
         auto const* begin = data;
         auto const* pos = data;
         auto const* end = data + size;
+        m_matcher.advance(begin, end, pos, startOffset);
+        pos += startOffset;
         while (pos < end)
         {
             if (m_matcher.findMatches(begin, end, pos))

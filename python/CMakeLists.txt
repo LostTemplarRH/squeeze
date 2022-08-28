@@ -1,7 +1,10 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 project(pysqueeze LANGUAGES CXX)
 
-add_subdirectory(../ squeeze)
+if(PROJECT_IS_TOP_LEVEL)
+  add_subdirectory(../ squeeze)
+endif()
+
 add_subdirectory(pybind11)
 
 pybind11_add_module(_squeeze

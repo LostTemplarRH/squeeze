@@ -1,4 +1,5 @@
 #include "CLI11.h"
+#include "namco/Lz0103.h"
 #include "namco/Lz80.h"
 #include <chrono>
 #include <cstddef>
@@ -63,6 +64,12 @@ auto doDecompression(const Compression type, const std::vector<uint8_t>& compres
     case Compression::NamcoLz80:
         decompressed = squeeze::decompressLz80(compressed.data(), compressed.size());
         break;
+    case Compression::NamcoLz01:
+        decompressed = squeeze::decompressLz01(compressed.data(), compressed.size());
+        break;
+    case Compression::NamcoLz03:
+        decompressed = squeeze::decompressLz03(compressed.data(), compressed.size());
+        break;
     default: throw std::runtime_error{"decompression type not supported"};
     }
     auto const end = std::chrono::high_resolution_clock::now();
@@ -78,6 +85,9 @@ auto doCompression(const Compression type, const std::vector<uint8_t>& decompres
     {
     case Compression::NamcoLz80:
         compressed = squeeze::compressLz80(decompressed.data(), decompressed.size());
+        break;
+    case Compression::NamcoLz03:
+        compressed = squeeze::compressLz03(decompressed.data(), decompressed.size());
         break;
     default: throw std::runtime_error{"decompression type not supported"};
     }
@@ -179,6 +189,8 @@ int main(int argc, char* argv[])
 
     std::map<std::string, Compression> compressions{
         {"lz80", Compression::NamcoLz80},
+        {"lz01", Compression::NamcoLz01},
+        {"lz03", Compression::NamcoLz03},
     };
 
     compressCmd->add_option("-t,--type", arguments.type, "type of compression")

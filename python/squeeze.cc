@@ -1,3 +1,4 @@
+#include <namco/Lz0103.h>
 #include <namco/Lz80.h>
 #include <pybind11/pybind11.h>
 
@@ -29,8 +30,41 @@ static auto _compress_lz80(py::buffer buffer, const size_t windowSize) -> py::by
     return py::bytes{reinterpret_cast<const char*>(compressed.data()), compressed.size()};
 }
 
+static auto _decompress_lz03(py::buffer buffer) -> py::bytes
+{
+    auto const [data, size] = requestReadOnly(buffer);
+    auto const decompressed = decompressLz03(data, size);
+    return py::bytes{reinterpret_cast<const char*>(decompressed.data()), decompressed.size()};
+}
+
+static auto _compress_lz03(py::buffer buffer) -> py::bytes
+{
+    auto const [data, size] = requestReadOnly(buffer);
+    auto const compressed = compressLz03(data, size);
+    return py::bytes{reinterpret_cast<const char*>(compressed.data()), compressed.size()};
+}
+
+static auto _decompress_lz01(py::buffer buffer) -> py::bytes
+{
+    auto const [data, size] = requestReadOnly(buffer);
+    auto const decompressed = decompressLz01(data, size);
+    return py::bytes{reinterpret_cast<const char*>(decompressed.data()), decompressed.size()};
+}
+
+static auto _compress_lz01(py::buffer buffer) -> py::bytes
+{
+    auto const [data, size] = requestReadOnly(buffer);
+    auto const compressed = compressLz01(data, size);
+    return py::bytes{reinterpret_cast<const char*>(compressed.data()), compressed.size()};
+}
+
 PYBIND11_MODULE(_squeeze, m)
 {
     m.doc() = "Internal squeeze module";
-    m.def("_decompress_lz80", &_decompress_lz80).def("_compress_lz80", &_compress_lz80);
+    m.def("_decompress_lz80", &_decompress_lz80)
+        .def("_compress_lz80", &_compress_lz80)
+        .def("_decompress_lz01", &_decompress_lz01)
+        .def("_compress_lz01", &_compress_lz01)
+        .def("_decompress_lz03", &_decompress_lz03)
+        .def("_compress_lz03", &_compress_lz03);
 }

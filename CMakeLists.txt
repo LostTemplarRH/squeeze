@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(lzss LANGUAGES CXX)
 
 option(SQUEEZE_BUILD_BENCHMARKS "Build benchmarks" OFF)
+option(SQUEEZE_BUILD_PYTHON_PACKAGE "Build Python package" OFF)
 
 add_library(squeeze INTERFACE)
 target_sources(squeeze
@@ -15,4 +16,8 @@ add_subdirectory(examples)
 
 if (SQUEEZE_BUILD_BENCHMARKS)
   add_subdirectory(benchmark)
+endif()
+
+if (SQUEEZE_BUILD_PYTHON_PACKAGE)
+  add_subdirectory(python)
 endif()

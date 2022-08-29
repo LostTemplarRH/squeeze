@@ -561,6 +561,16 @@ public:
         pos += startOffset;
         while (pos < end)
         {
+            if constexpr (Processor::SupportsRLE)
+            {
+                auto rlePos = pos;
+                auto const value = *pos;
+                while (rlePos < end && *rlePos == value)
+                {
+                    ++rlePos;
+                }
+            }
+
             if (m_matcher.findMatches(begin, end, pos))
             {
                 auto const bestClass = m_matcher.bestMatch();

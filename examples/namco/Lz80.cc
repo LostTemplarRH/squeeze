@@ -139,7 +139,7 @@ public:
     {
     }
 
-    void consumeMatch(const uint8_t* begin, const uint8_t* end, const unsigned int cls,
+    void consumeMatch(const uint8_t* begin, const uint8_t* end,
                       const Match& match)
     {
         if (m_literalStart != m_literalEnd)
@@ -150,7 +150,7 @@ public:
         // std::cout << m_compressed.size() << " / " << (begin - m_data) << " "
         //<< "Match   : " << match.offset << ", " << match.length << "\n";
 
-        switch (cls)
+        switch (match.cls)
         {
         case 0: encodeMatch0(match); break;
         case 1: encodeMatch1(match); break;

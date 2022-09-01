@@ -3,3 +3,4 @@ _skbuild/
 dist/
 **/*.pyd
 **/*egg-info
+build/

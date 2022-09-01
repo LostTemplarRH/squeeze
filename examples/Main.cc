@@ -86,6 +86,9 @@ auto doCompression(const Compression type, const std::vector<uint8_t>& decompres
     case Compression::NamcoLz80:
         compressed = squeeze::compressLz80(decompressed.data(), decompressed.size());
         break;
+    case Compression::NamcoLz01:
+        compressed = squeeze::compressLz01(decompressed.data(), decompressed.size());
+        break;
     case Compression::NamcoLz03:
         compressed = squeeze::compressLz03(decompressed.data(), decompressed.size());
         break;

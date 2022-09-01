@@ -15,4 +15,9 @@ target_link_libraries(_squeeze
     squeeze
     squeeze-namco
 )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set_property(TARGET squeeze-namco PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
 install(TARGETS _squeeze DESTINATION .)

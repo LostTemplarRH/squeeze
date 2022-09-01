@@ -4,7 +4,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
+#include <tuple>
 #include <vector>
+#include <optional>
+#include <iostream>
 
 namespace squeeze {
 
@@ -91,12 +95,19 @@ private:
 
 struct Match
 {
+    size_t cls;
     size_t offset;
     size_t length;
 
     bool isValid() const
     {
         return length > 0;
+    }
+
+    void reset()
+    {
+        offset = 0;
+        length = 0;
     }
 };
 
@@ -113,6 +124,8 @@ struct Range
 
 struct MatchClass
 {
+    using Match = squeeze::Match;
+
     size_t overhead{0};
     Range length;
     Range offset;
@@ -123,9 +136,12 @@ struct MatchClass
     }
 };
 
-template <unsigned int MatchClasses> class StringMatcher
+template <class _MatchClass, unsigned int MatchClasses> class StringMatcher
 {
 public:
+    using MatchClass = _MatchClass;
+    using Match = typename MatchClass::Match;
+
     constexpr auto matchClassCount() const -> unsigned int
     {
         return MatchClasses;
@@ -147,7 +163,7 @@ public:
         return m_matchClasses[index];
     }
 
-    auto match(const unsigned int index) const -> const Match&
+    auto match(const unsigned int index) const -> const typename MatchClass::Match&
     {
         return m_matches[index];
     }
@@ -181,19 +197,19 @@ protected:
     {
         for (auto& match : m_matches)
         {
-            match.length = 0;
-            match.offset = 0;
+            match.reset();
         }
     }
 
-    std::array<Match, MatchClasses> m_matches;
+    std::array<typename MatchClass::Match, MatchClasses> m_matches;
 
 private:
     std::array<MatchClass, MatchClasses> m_matchClasses;
     size_t m_maxMatchLength{0};
 };
 
-template <unsigned int MatchClasses> class BruteForceMatcher : public StringMatcher<MatchClasses>
+template <unsigned int MatchClasses>
+class BruteForceMatcher : public StringMatcher<MatchClass, MatchClasses>
 {
 public:
     explicit BruteForceMatcher(const size_t windowLength)
@@ -226,6 +242,7 @@ public:
                     if (matchCls.offset.contains(offset) && matchCls.length.contains(length) &&
                         length > this->m_matches[cls].length)
                     {
+                        this->m_matches[cls].cls = cls;
                         this->m_matches[cls].length = length;
                         this->m_matches[cls].offset = offset;
                         matchFound = true;
@@ -245,12 +262,14 @@ private:
     size_t m_windowLength;
 };
 
-template <unsigned int MatchClasses> class BinaryTreeMatcher : public StringMatcher<MatchClasses>
+template <unsigned int MatchClasses>
+class BinaryTreeMatcher : public StringMatcher<MatchClass, MatchClasses>
 {
 public:
-    using StringMatcher<MatchClasses>::maxMatchLength;
-    using StringMatcher<MatchClasses>::matchClassCount;
-    using StringMatcher<MatchClasses>::resetMatches;
+    using Base = StringMatcher<MatchClass, MatchClasses>;
+    using Base::maxMatchLength;
+    using Base::matchClassCount;
+    using Base::resetMatches;
 
     explicit BinaryTreeMatcher(const size_t windowLength)
         : m_nodes(windowLength, Node{EmptyNode, EmptyNode, EmptyNode})
@@ -277,6 +296,7 @@ public:
 
             if (length > 1)
             {
+                std::cout << "blub\n";
                 for (unsigned int cls = 0; cls < this->matchClassCount(); ++cls)
                 {
                     auto const& matchCls = this->matchClass(cls);
@@ -525,29 +545,105 @@ private:
     size_t m_positionBase{0};
 };
 
-template <class Matcher> class LzCompressor
+struct RleMatch
+{
+    size_t cls;
+    size_t length;
+
+    bool isValid() const
+    {
+        return length != 0;
+    }
+
+    void reset()
+    {
+        length = 0;
+    }
+};
+
+struct RleMatchClass
+{
+    using Match = RleMatch;
+
+    size_t overhead{0};
+    Range length;
+
+    auto quality(const Match& match) const -> size_t
+    {
+        return match.length - overhead;
+    }
+};
+
+template <unsigned int MatchClasses>
+class RleMatcher : public StringMatcher<RleMatchClass, MatchClasses>
+{
+public:
+    using StringMatcher<RleMatchClass, MatchClasses>::maxMatchLength;
+    using StringMatcher<RleMatchClass, MatchClasses>::matchClass;
+    using StringMatcher<RleMatchClass, MatchClasses>::matchClassCount;
+    using StringMatcher<RleMatchClass, MatchClasses>::resetMatches;
+
+    template <class Iterator> bool findMatches(Iterator begin, Iterator end, Iterator pos)
+    {
+        auto rlePos = pos;
+        auto const value = *pos;
+        while (rlePos < end && *rlePos == value && rlePos - pos < maxMatchLength())
+        {
+            ++rlePos;
+        }
+
+        auto const length = static_cast<size_t>(rlePos - pos);
+        bool matchFound{false};
+        if (length > 1)
+        {
+            for (unsigned int cls = 0; cls < matchClassCount(); ++cls)
+            {
+                auto const& matchCls = matchClass(cls);
+                if (length >= matchCls.length.min)
+                {
+                    this->m_matches[cls].cls = cls;
+                    this->m_matches[cls].length = std::min(length, matchCls.length.max);
+                    matchFound = true;
+                }
+            }
+        }
+        return matchFound;
+    }
+
+    template <class Iterator> void advance(Iterator, Iterator, Iterator, size_t)
+    {
+    }
+};
+
+template <class... Matchers> class LzCompressor
 {
 public:
     LzCompressor() = default;
 
-    explicit LzCompressor(const Matcher& matcher)
-        : m_matcher{matcher}
+    explicit LzCompressor(Matchers&&... matchers)
+        : m_matchers{std::forward<Matchers>(matchers)...}
     {
     }
 
-    explicit LzCompressor(Matcher&& matcher)
-        : m_matcher{std::move(matcher)}
-    {
-    }
-
+    template<class Matcher = std::tuple_element_t<0, std::tuple<Matchers...>>>
     auto matcher() const -> const Matcher&
     {
-        return m_matcher;
+        return std::get<Matcher>(m_matchers);
     }
 
+    template<class Matcher = std::tuple_element_t<0, std::tuple<Matchers...>>>
     auto matcher() -> Matcher&
     {
-        return m_matcher;
+        return std::get<Matcher>(m_matchers);
+    }
+
+    template<size_t I> void advanceMatchers(const uint8_t* begin, const uint8_t* end, const uint8_t* pos, size_t steps)
+    {
+        std::get<I>(m_matchers).advance(begin, end, pos, steps);
+        if constexpr (I + 1 < std::tuple_size_v<std::tuple<Matchers...>>)
+        {
+            advanceMatchers<I+1>(begin, end, pos, steps);
+        }
     }
 
     template <class Processor>
@@ -557,39 +653,87 @@ public:
         auto const* begin = data;
         auto const* pos = data;
         auto const* end = data + size;
-        m_matcher.advance(begin, end, pos, startOffset);
+
+        advanceMatchers<0>(begin, end, pos, startOffset);
+
+        /*
+        std::apply([begin, end, pos, startOffset](auto&... args) {
+            ((args.advance(begin, end, pos, startOffset)), ...);
+        }, m_matchers);
+        */
+
         pos += startOffset;
         while (pos < end)
         {
-            if constexpr (Processor::SupportsRLE)
+            std::tuple<typename Matchers::Match...> matches;
+            auto const* old_pos = pos;
+            if (findMatches<0>(matches, begin, pos, end))
             {
-                auto rlePos = pos;
-                auto const value = *pos;
-                while (rlePos < end && *rlePos == value)
-                {
-                    ++rlePos;
-                }
-            }
-
-            if (m_matcher.findMatches(begin, end, pos))
-            {
-                auto const bestClass = m_matcher.bestMatch();
-                auto const& match = m_matcher.match(bestClass);
-                processor.consumeMatch(pos, pos + match.length, bestClass, match);
-                m_matcher.advance(begin, end, pos, match.length);
-                pos += match.length;
+                pos = applyMatch<0>(matches, processor, begin, pos, end);                
             }
             else
             {
                 processor.consumeLiteral(pos);
-                m_matcher.advance(begin, end, pos, 1);
                 pos += 1;
             }
+            //std::cout << (pos - old_pos) << "\n";
+            advanceMatchers<0>(begin, end, pos, pos - old_pos);
+        }
+    }
+
+    template<size_t I>
+    auto findMatches(std::tuple<typename Matchers::Match...>& matches,
+        const uint8_t* begin, const uint8_t* pos, const uint8_t* end) -> std::optional<size_t>
+    {
+        std::optional<size_t> best;
+        if constexpr (I + 1 < std::tuple_size_v<std::tuple<Matchers...>>)
+        {
+            best = findMatches<I+1>(matches, begin, pos, end);
+        }
+
+        auto& matcher = std::get<I>(m_matchers);
+        auto& match = std::get<I>(matches);
+        const bool found = matcher.findMatches(begin, end, pos);
+        if (found)
+        {
+            auto const bestClass = matcher.bestMatch();
+            auto const& bestMatch = matcher.match(bestClass);
+            auto const quality = matcher.matchClass(bestClass).quality(bestMatch);
+            std::cout << quality << "\n";
+            if (!best || quality > *best)
+            {
+                std::cout << "*\n";
+                match = bestMatch;
+                return quality;
+            }
+        }
+        return best;
+    }
+
+    template<size_t I, class Processor>
+    auto applyMatch(std::tuple<typename Matchers::Match...>& matches,
+        Processor& processor,
+        const uint8_t* begin, const uint8_t* pos, const uint8_t* end) -> const uint8_t*
+    {
+        auto const& match = std::get<I>(matches);
+        if (match.isValid())
+        {
+            //std::cout << "Match [" << I << "] " << (pos - begin - 4096) << "\n";
+            processor.consumeMatch(pos, pos + match.length, match);
+            return pos + match.length;
+        }
+        if constexpr (I + 1 < std::tuple_size_v<std::tuple<Matchers...>>)
+        {
+            return applyMatch<I + 1>(matches, processor, begin, pos, end);
+        }
+        else
+        {
+            throw std::runtime_error{"no match - should not happen"};
         }
     }
 
 private:
-    Matcher m_matcher;
+    std::tuple<Matchers...> m_matchers;
 };
 
 } // namespace squeeze

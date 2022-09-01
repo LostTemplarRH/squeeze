@@ -2,6 +2,7 @@
 #include "Lz0103Data.h"
 #include <squeeze.h>
 #include <stdexcept>
+#include <iostream>
 
 namespace squeeze {
 
@@ -89,7 +90,7 @@ auto Lz0103Decompressor::decompress(const uint8_t* data, const size_t size) -> s
         control >>= 1;
     }
     auto decompressed = m_lzss.finish();
-    // decompressed.erase(decompressed.begin(), decompressed.begin() + m_preData.size());
+    decompressed.erase(decompressed.begin(), decompressed.begin() + m_preData.size());
     return decompressed;
 }
 
@@ -145,9 +146,10 @@ public:
         m_lastFlag = 0;
     }
 
-    void consumeMatch(const uint8_t* begin, const uint8_t* end, const unsigned int cls,
+    void consumeMatch(const uint8_t* begin, const uint8_t* end,
                       const Match& match)
     {
+        std::cout << "match " << m_compressed.size() << ": |" << std::string(reinterpret_cast<const char*>(begin), match.length) << "|\n";
         m_compressed[m_lastFlag] >>= 1;
 
         encodeMatch(match);
@@ -173,8 +175,26 @@ public:
         advance(1);
     }
 
-    void consumeRLE(const uint8_t* pos, size_t length)
+    void consumeMatch(const uint8_t* begin, const uint8_t* end, 
+                      const RleMatch& match)
     {
+        m_compressed[m_lastFlag] >>= 1;
+
+        if (match.cls == 0)
+        {
+            auto const b = 0xF | ((match.length - 3) << 4);
+            m_compressed.push_back(*begin);
+            m_compressed.push_back(b);
+        }
+        else
+        {
+            auto const b = 0xF;
+            m_compressed.push_back(match.length);
+            m_compressed.push_back(b);
+            m_compressed.push_back(*begin);
+        }
+
+        advance(match.length);
     }
 
     void advance(size_t length)
@@ -198,6 +218,10 @@ public:
         if (m_flagsLeft == 8)
         {
             m_compressed.pop_back();
+        }
+        else
+        {
+            m_compressed[m_lastFlag] >>= m_flagsLeft;
         }
         return std::move(m_compressed);
     }
@@ -236,9 +260,13 @@ auto compressLz03(const uint8_t* data, const size_t size) -> std::vector<uint8_t
     std::memcpy(prefixedData.data(), RingbufferPrefill + 1, 4096);
     std::memcpy(prefixedData.data() + 4096, data, size);
 
+    using DictMatcher = squeeze::BinaryTreeMatcher<1>;
+    using RleMatcher = squeeze::RleMatcher<2>;
     Lz03Compressor lz0103(prefixedData.data(), prefixedData.size());
-    squeeze::LzCompressor<squeeze::BinaryTreeMatcher<1>> lz{squeeze::BinaryTreeMatcher<1>{4096}};
-    lz.matcher().configureMatchClass(0, MatchClass{0, {3, 17}, {1, 4096}});
+    squeeze::LzCompressor<DictMatcher, RleMatcher> lz{DictMatcher(4096), RleMatcher{}};
+    lz.matcher<DictMatcher>().configureMatchClass(0, MatchClass{0, {3, 17}, {1, 4096}});
+    lz.matcher<RleMatcher>().configureMatchClass(0, RleMatchClass{0, {3, 18}});
+    lz.matcher<RleMatcher>().configureMatchClass(1, RleMatchClass{1, {19, 255+19}});
     lz.compress(prefixedData.data(), prefixedData.size(), lz0103, 4096);
     return lz0103.finish();
 }
@@ -249,9 +277,10 @@ auto compressLz01(const uint8_t* data, const size_t size) -> std::vector<uint8_t
     std::memcpy(prefixedData.data(), RingbufferPrefill, 4096);
     std::memcpy(prefixedData.data() + 4096, data, size);
 
+    using DictMatcher = squeeze::BinaryTreeMatcher<1>;
     Lz01Compressor lz0103(prefixedData.data(), prefixedData.size());
-    squeeze::LzCompressor<squeeze::BinaryTreeMatcher<1>> lz{squeeze::BinaryTreeMatcher<1>{4096}};
-    lz.matcher().configureMatchClass(0, MatchClass{0, {3, 18}, {1, 4096}});
+    squeeze::LzCompressor<DictMatcher> lz{DictMatcher{4096}};
+    lz.matcher<DictMatcher>().configureMatchClass(0, MatchClass{0, {3, 18}, {1, 4096}});
     lz.compress(prefixedData.data(), prefixedData.size(), lz0103, 4096);
     return lz0103.finish();
 }

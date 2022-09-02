@@ -8,7 +8,6 @@
 #include <tuple>
 #include <vector>
 #include <optional>
-#include <iostream>
 
 namespace squeeze {
 
@@ -296,7 +295,6 @@ public:
 
             if (length > 1)
             {
-                std::cout << "blub\n";
                 for (unsigned int cls = 0; cls < this->matchClassCount(); ++cls)
                 {
                     auto const& matchCls = this->matchClass(cls);
@@ -585,6 +583,8 @@ public:
 
     template <class Iterator> bool findMatches(Iterator begin, Iterator end, Iterator pos)
     {
+        resetMatches();
+
         auto rlePos = pos;
         auto const value = *pos;
         while (rlePos < end && *rlePos == value && rlePos - pos < maxMatchLength())
@@ -656,28 +656,22 @@ public:
 
         advanceMatchers<0>(begin, end, pos, startOffset);
 
-        /*
-        std::apply([begin, end, pos, startOffset](auto&... args) {
-            ((args.advance(begin, end, pos, startOffset)), ...);
-        }, m_matchers);
-        */
-
         pos += startOffset;
         while (pos < end)
         {
             std::tuple<typename Matchers::Match...> matches;
-            auto const* old_pos = pos;
             if (findMatches<0>(matches, begin, pos, end))
             {
-                pos = applyMatch<0>(matches, processor, begin, pos, end);                
+                auto const new_pos = applyMatch<0>(matches, processor, begin, pos, end);                
+                advanceMatchers<0>(begin, end, pos, new_pos - pos);
+                pos = new_pos;
             }
             else
             {
                 processor.consumeLiteral(pos);
+                advanceMatchers<0>(begin, end, pos, 1);
                 pos += 1;
             }
-            //std::cout << (pos - old_pos) << "\n";
-            advanceMatchers<0>(begin, end, pos, pos - old_pos);
         }
     }
 
@@ -699,10 +693,8 @@ public:
             auto const bestClass = matcher.bestMatch();
             auto const& bestMatch = matcher.match(bestClass);
             auto const quality = matcher.matchClass(bestClass).quality(bestMatch);
-            std::cout << quality << "\n";
             if (!best || quality > *best)
             {
-                std::cout << "*\n";
                 match = bestMatch;
                 return quality;
             }
@@ -718,7 +710,6 @@ public:
         auto const& match = std::get<I>(matches);
         if (match.isValid())
         {
-            //std::cout << "Match [" << I << "] " << (pos - begin - 4096) << "\n";
             processor.consumeMatch(pos, pos + match.length, match);
             return pos + match.length;
         }

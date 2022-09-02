@@ -2,7 +2,6 @@
 #include "Lz0103Data.h"
 #include <squeeze.h>
 #include <stdexcept>
-#include <iostream>
 
 namespace squeeze {
 
@@ -61,11 +60,11 @@ auto Lz0103Decompressor::decompress(const uint8_t* data, const size_t size) -> s
             auto const nextControl2 = m_lzss.fetch();
             const uint8_t control1 = nextControl2 & 0x0F;
             const uint8_t control2 = nextControl2 >> 4;
-            if (m_rle && control1 == 0x0F)
+            if (m_rle && control1 == 0xF)
             {
                 uint16_t runLength;
                 uint8_t value;
-                if (control2 == 0x00)
+                if (control2 == 0x0)
                 {
                     runLength = nextControl1 + 19;
                     value = m_lzss.fetch();
@@ -149,7 +148,6 @@ public:
     void consumeMatch(const uint8_t* begin, const uint8_t* end,
                       const Match& match)
     {
-        std::cout << "match " << m_compressed.size() << ": |" << std::string(reinterpret_cast<const char*>(begin), match.length) << "|\n";
         m_compressed[m_lastFlag] >>= 1;
 
         encodeMatch(match);
@@ -188,8 +186,8 @@ public:
         }
         else
         {
-            auto const b = 0xF;
-            m_compressed.push_back(match.length);
+            auto const b = 0x0F;
+            m_compressed.push_back(match.length - 19);
             m_compressed.push_back(b);
             m_compressed.push_back(*begin);
         }
@@ -264,8 +262,8 @@ auto compressLz03(const uint8_t* data, const size_t size) -> std::vector<uint8_t
     using RleMatcher = squeeze::RleMatcher<2>;
     Lz03Compressor lz0103(prefixedData.data(), prefixedData.size());
     squeeze::LzCompressor<DictMatcher, RleMatcher> lz{DictMatcher(4096), RleMatcher{}};
-    lz.matcher<DictMatcher>().configureMatchClass(0, MatchClass{0, {3, 17}, {1, 4096}});
-    lz.matcher<RleMatcher>().configureMatchClass(0, RleMatchClass{0, {3, 18}});
+    lz.matcher<DictMatcher>().configureMatchClass(0, MatchClass{0, {3, 17}, {1, 4095}});
+    lz.matcher<RleMatcher>().configureMatchClass(0, RleMatchClass{0, {4, 18}});
     lz.matcher<RleMatcher>().configureMatchClass(1, RleMatchClass{1, {19, 255+19}});
     lz.compress(prefixedData.data(), prefixedData.size(), lz0103, 4096);
     return lz0103.finish();

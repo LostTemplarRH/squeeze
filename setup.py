@@ -16,5 +16,5 @@ setup(
     packages=['pysqueeze'],
     package_dir={'': 'python'},
     cmake_source_dir='python',
-    cmake_install_dir='python/pysqueeze',
+    cmake_install_dir='python',
 )

@@ -2,5 +2,11 @@
 _skbuild/
 dist/
 **/*.pyd
+**/*.so
 **/*egg-info
 build/
+.cache/
+.pytest_cache/
+.nox/
+.download/
+.vscode/

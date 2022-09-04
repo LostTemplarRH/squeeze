@@ -8,12 +8,12 @@ except ImportError:
     raise
 
 setup(
-    name="pysqueeze",
+    name="squeeze",
     version="0.0.1",
     description="A compressor/decompessor generator",
     author='LostTemplar',
     license="MIT",
-    packages=['pysqueeze'],
+    packages=['squeeze'],
     package_dir={'': 'python'},
     cmake_source_dir='python',
     cmake_install_dir='python',

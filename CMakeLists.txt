@@ -3,6 +3,7 @@ project(lzss LANGUAGES CXX)
 
 option(SQUEEZE_BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(SQUEEZE_BUILD_PYTHON_PACKAGE "Build Python package" OFF)
+option(SQUEEZE_BUILD_CLI "Build examples CLI" ON)
 
 add_library(squeeze INTERFACE)
 target_sources(squeeze

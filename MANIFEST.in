@@ -1,0 +1,7 @@
+include examples/**/*
+include squeeze.h
+include python/*.h
+include python/*.cc
+include python/CMakeLists.txt
+include python/get_cpm.cmake
+include CMakeLists.txt

@@ -1,13 +1,29 @@
+[project]
+name = "squeeze"
+version = "0.1.0"
+authors = [
+  { name="LostTemplar", email="lt@losttemplar.dev" },
+]
+description = "Facilities for generating LZSS compressors and decompressors"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/LostTemplarRH/squeeze"
+"Bug Tracker" = "https://github.com/LostTemplarRH/squeeze/issues"
+
 [build-system]
 requires = ["setuptools", "wheel", "scikit-build>=0.15", "cmake>=3.21", "ninja; platform_system!='Windows'"]
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
 archs = ["auto64"]
-manylinux-x86_64-image = "manylinux2014-clang"
-manylinux-pypy_x86_64-image = "manylinux2014-clang"
+manylinux-x86_64-image = "quay.io/pypa/manylinux2014_x86_64"
+manylinux-pypy_x86_64-image = "quay.io/pypa/manylinux2014_x86_64"
 test-requires = "pytest"
 test-command = "pytest {project}/python/tests"
-
-[tool.cibuildwheel.linux]
-environment = { CC = "clang", CXX = "clang++" }

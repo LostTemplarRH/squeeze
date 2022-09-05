@@ -10,3 +10,4 @@ build/
 .nox/
 .download/
 .vscode/
+wheelhouse/

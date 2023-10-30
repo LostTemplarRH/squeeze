@@ -7,7 +7,7 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/get_cpm.cmake)
-CPMAddPackage("gh:pybind/pybind11@2.10.0")
+CPMAddPackage("gh:pybind/pybind11@2.11.1")
 
 pybind11_add_module(_squeeze
   squeeze.cc

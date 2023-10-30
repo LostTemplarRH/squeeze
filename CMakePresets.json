@@ -1,0 +1,64 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 23,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "ninja",
+            "displayName": "Ninja",
+            "description": "Default build using Ninja generator",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "SQUEEZE_BUILD_PYTHON_PACKAGE": "OFF"
+            }
+        },
+        {
+            "name": "ninja-multi",
+            "inherits": "ninja",
+            "displayName": "Ninja Multi",
+            "description": "Build without Python wrapper using Ninja Multi-Config",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+            }
+        },
+        {
+            "name": "ninja-multi-python",
+            "inherits": "ninja-multi",
+            "displayName": "Ninja Multi (with Python wrapper)",
+            "description": "Build with Python wrapper using Ninja Multi-Config",
+            "generator": "Ninja Multi-Config",
+            "cacheVariables": {
+                "SQUEEZE_BUILD_PYTHON_PACKAGE": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Release",
+            "configurePreset": "ninja-multi",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug",
+            "configurePreset": "ninja-multi",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release (with Python wrapper)",
+            "configurePreset": "ninja-multi-python",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug (with Python wrapper)",
+            "configurePreset": "ninja-multi-python",
+            "configuration": "Debug"
+        }
+    ]
+}
